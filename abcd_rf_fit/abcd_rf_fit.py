@@ -73,7 +73,7 @@ def abcd2params(abcd, geometry):
 
         kappa = kappa_i + kappa_c_real
 
-        phi_0 = np.angle(kappa_c_real - 1j*kappa_c_imag)
+        phi_0 = np.angle(kappa_c_real - 1j * kappa_c_imag)
 
         return f_0, kappa, kappa_c_real, phi_0, np.real(a_in), np.imag(a_in)
 
@@ -109,13 +109,13 @@ def abcd2params(abcd, geometry):
         f_0 = -np.real(c / d)
         a_in = b / d
 
-        kappa_c_imag = 2*np.real(a / b - c / d)
-        kappa_c_real = 2*np.real(1j * (c / d - a / b))
+        kappa_c_imag = 2 * np.real(a / b - c / d)
+        kappa_c_real = 2 * np.real(1j * (c / d - a / b))
         kappa_i = -2 * np.imag(c / d) - kappa_c_real
 
         kappa = kappa_i + kappa_c_real
 
-        phi_0 = np.angle(kappa_c_real - 1j*kappa_c_imag)
+        phi_0 = np.angle(kappa_c_real - 1j * kappa_c_imag)
 
         return f_0, kappa, kappa_c_real, phi_0, np.real(a_in), np.imag(a_in)
 
@@ -186,6 +186,7 @@ def fit_signal(
     fit_amplitude=True,
     fit_edelay=True,
     final_ls_opti=True,
+    return_pcov=False,
     allow_mismatch=True,
     rec_depth=1,
 ):
@@ -214,12 +215,18 @@ def fit_signal(
 
     fit_func = get_fit_function(geometry, fit_amplitude, fit_edelay)
 
-    if final_ls_opti:
-        params, _ = complex_fit(fit_func, freq, signal, params)
-    
-    resonator_params = ResonatorParams(params, geometry)
+    if final_ls_opti or return_pcov:
+        params_opt, pcov = complex_fit(fit_func, freq, signal, params)
 
-    if resonator_params.phi_0 is not None and  np.abs(resonator_params.phi_0) > 0.25:
-        warnings.warn("Extracted phi_0 greater than 0.25, this might indicate a big impedance mismatch, values of kappa_i and kappa_c might be affected, you can try to set: allow_mismatch=False", UserWarning)
+    resonator_params = ResonatorParams(params_opt, geometry)
 
-    return fit_func, ResonatorParams(params, geometry)
+    if resonator_params.phi_0 is not None and np.abs(resonator_params.phi_0) > 0.25:
+        warnings.warn(
+            "Extracted phi_0 greater than 0.25, this might indicate a big impedance mismatch, values of kappa_i and kappa_c might be affected, you can try to set: allow_mismatch=False",
+            UserWarning,
+        )
+
+    if return_pcov:
+        return fit_func, ResonatorParams(params_opt, geometry), pcov
+
+    return fit_func, ResonatorParams(params_opt, geometry)
