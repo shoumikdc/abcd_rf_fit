@@ -48,8 +48,8 @@ def hanger_mismatched(freq, f_0, kappa, kappa_c_real, phi_0):
     return hanger(freq, f_0, kappa, kappa_c_real, phi_0)
 
 
-def hanger_zero_internal_loss(freq, f_0, kappa, phi_0):
-    return hanger(freq, f_0, 0, kappa, phi_0)
+def hanger_zero_internal_loss(freq, f_0, kappa_c_real, phi_0):
+    return hanger(freq, f_0, kappa_c_real, kappa_c_real, phi_0)
 
 
 resonator_dict = {
@@ -105,7 +105,8 @@ class ResonatorParams(object):
 
         if self.resonator_func in [hanger_zero_internal_loss]:
             self.f_0_index = 0
-            self.kappa_index = 1
+            self.kappa_c_real_index = 1
+            self.kappa_index = 1  # Here κ = Re(κc)
             self.phi_0_index = 2
             if len(self.params) in [5, 6]:
                 self.re_a_in_index = 3
