@@ -1,6 +1,26 @@
 # Optimal method for resonator scattering parameter fit
 
-## 0) Why spending time on this problem ?
+## 0) Package Installation
+#### Build from source
+
+To build `abcd_rf_fit` from source, pip install using:
+```
+git clone git@github.com:shoumikdc/abcd_rf_fit.git
+cd abcd_rf_fit
+pip install --upgrade .
+```
+#### Installation for Devs
+
+If you intend to contribute to this project, please install `abcd_rf_fit` in develop mode as follows:
+```sh
+git clone git@github.com:shoumikdc/abcd_rf_fit.git
+cd abcd_rf_fit
+pip install -e .[dev]
+```
+Please use `pip install -e '.[dev]'` if you are a `zsh` user.
+
+
+## I) Why spend time on this problem?
 
 Fitting resonators is really the bread and butter of the circuit QED engineer. Hence, it is absolutely crucial to have fast and reliable routines to perform this task.
 
@@ -12,7 +32,7 @@ Secondly, if the fit of the electrical delay fails, then the data effectively li
 
 In this note, we present an analytical method to perform this task.
 
-## I) Derivation scattering parameter formula
+## II) Derivation scattering parameter formula
 
 We use the convention described in the [Gardiner](https://journals.aps.org/pra/abstract/10.1103/PhysRevA.31.3761) for the input/output relation:
 
@@ -119,6 +139,19 @@ $$
 
 In practise, adding this degree of freedom to the formula loosens the precision of the fit of $\kappa_i$ and $\kappa_c$. Hence, one should be cautious when allowing for this offset.
 
+
+### 4.1 Hanger with mismatch and zero internal loss
+When designing superconducting resonators we often want to simulate the coupling loss of a given resonator to a feedline. For this, we can use the hanger with mismatch equations above; however, in simulation, we don't have any internal loss and so we should modify the fit routine to take just a single parameter $\kappa = \Re(\kappa_c)$ and explicitly set $\kappa_i = 0$. 
+
+$$
+S_{HM}(\omega) = \frac{2i(\omega-\omega_0) + i\kappa\tan(\phi_0))}{2i(\omega-\omega_0) + \kappa}
+$$
+
+The rest of the caveats associated with the hanger with mismatch fitting apply here as well, though we now have one fewer fitting parameter. Furthermore, we note that the relevant coupling to the resonator, I think, should be $\kappa = \Re(\kappa_c)$ rather than the magnitude $|\kappa_c|$? (`TODO`: check this)
+
+
+
+
 ### 5. Reflection with impedance mismatch
 
 Taking inspiration for what was done for the hanger, we allow the rotation around $1$ in the complex plan by writing the input/output relation as follow. THERE IS NO PHYSICAL INTUITION BEHIND THIS FORMULA AND IT IS WRITTEN PURELY BY ANALOGY:
@@ -152,7 +185,7 @@ X &= T, R, H, RM, HM
 \end{align}
 $$
 
-## II) Fit of a rationnal function of degree one
+## III) Fit of a rationnal function of degree one
 
 Ingoring the electrical for now, one can observe that all the scattering parameters we described can be written in the form:
 
