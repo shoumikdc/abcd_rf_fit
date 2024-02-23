@@ -25,7 +25,7 @@ def transmission(freq, f_0, kappa):
 
 def reflection(freq, f_0, kappa, kappa_c_real, phi_0=0):
 
-    num = 2j * (freq - f_0) + kappa - 2*kappa_c_real*(1+1j*np.tan(phi_0))
+    num = 2j * (freq - f_0) + kappa - 2 * kappa_c_real * (1 + 1j * np.tan(phi_0))
     den = 2j * (freq - f_0) + kappa
 
     return num / zeros2eps(den)
@@ -38,15 +38,18 @@ def reflection_mismatched(freq, f_0, kappa, kappa_c_real, phi_0):
 
 def hanger(freq, f_0, kappa, kappa_c_real, phi_0=0):
 
-    num = 2j * (freq - f_0) + kappa - kappa_c_real*(1+1j*np.tan(phi_0))
+    num = 2j * (freq - f_0) + kappa - kappa_c_real * (1 + 1j * np.tan(phi_0))
     den = 2j * (freq - f_0) + kappa
 
     return num / zeros2eps(den)
 
 
 def hanger_mismatched(freq, f_0, kappa, kappa_c_real, phi_0):
-
     return hanger(freq, f_0, kappa, kappa_c_real, phi_0)
+
+
+def hanger_zero_internal_loss(freq, f_0, kappa, phi_0):
+    return hanger(freq, f_0, 0, kappa, phi_0)
 
 
 resonator_dict = {
@@ -60,6 +63,7 @@ resonator_dict = {
     "h": hanger,
     "hanger_mismatched": hanger_mismatched,
     "hm": hanger_mismatched,
+    "h0": hanger_zero_internal_loss,
 }
 
 
@@ -97,6 +101,16 @@ class ResonatorParams(object):
                 self.re_a_in_index = 3
                 self.im_a_in_index = 4
             if len(self.params) in [5, 7]:
+                self.edelay_index = -1
+
+        if self.resonator_func in [hanger_zero_internal_loss]:
+            self.f_0_index = 0
+            self.kappa_index = 1
+            self.phi_0_index = 2
+            if len(self.params) in [5, 6]:
+                self.re_a_in_index = 3
+                self.im_a_in_index = 4
+            if len(self.params) in [4, 6]:
                 self.edelay_index = -1
 
     def tolist(self):
@@ -173,7 +187,14 @@ class ResonatorParams(object):
         else:
             return None
 
-    def str(self, latex=False, separator=", ", precision=2, only_f_and_kappa=False, f_precision=2):
+    def str(
+        self,
+        latex=False,
+        separator=", ",
+        precision=2,
+        only_f_and_kappa=False,
+        f_precision=2,
+    ):
 
         kappa = {False: "kappa/2pi", True: r"$\kappa/2\pi$"}
         kappa_i = {False: "kappa_i/2pi", True: r"$\kappa_i/2\pi$"}
@@ -182,11 +203,17 @@ class ResonatorParams(object):
         f_0 = {False: "f_0", True: r"$f_0$"}
 
         if self.edelay is not None:
-            edelay_str = "%sedelay = %ss" % (separator, get_prefix_str(self.edelay, precision))
+            edelay_str = "%sedelay = %ss" % (
+                separator,
+                get_prefix_str(self.edelay, precision),
+            )
         else:
             edelay_str = ""
 
-        if self.resonator_func == transmission:
+        if (
+            self.resonator_func == transmission
+            or self.resonator_func == hanger_zero_internal_loss
+        ):
             kappa_str = r"%s%s = %sHz" % (
                 separator,
                 kappa[latex],
