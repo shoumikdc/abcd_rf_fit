@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.optimize import least_squares
+from scipy.linalg import svd
 
 
 def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
@@ -26,7 +27,7 @@ def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
         )
 
     def residuals(params, x, y):
-        """ Computes the residual for the least square algorithm"""
+        """Computes the residual for the least square algorithm"""
         if weights is not None:
             diff = weights * f(x, *params) - y
         else:
@@ -41,13 +42,21 @@ def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
     kwargs_ls.setdefault("ftol", 1e-2)
     opt_res = least_squares(residuals, p0, args=(xdata, ydata), **kwargs_ls)
 
-    jac = opt_res.jac
-    cost = opt_res.cost
-
-    pcov = np.linalg.inv(jac.T.dot(jac))
-    pcov *= cost / (np.array(ydata).size - len(p0))
-
     popt = opt_res.x
+
+    # From abcd_rf_fit
+    # jac = opt_res.jac
+    # cost = opt_res.cost
+    # pcov = np.linalg.inv(jac.T.dot(jac))
+    # pcov *= cost / (np.array(ydata).size - len(p0))
+
+    # From curve_fit (Reouven)
+    _, s, VT = svd(opt_res.jac, full_matrices=False)
+    threshold = np.finfo(float).eps * max(opt_res.jac.shape) * s[0]
+    s = s[s > threshold]
+    VT = VT[: s.size]
+    pcov = np.dot(VT.T / s**2, VT)
+    pcov *= opt_res.cost / (np.array(ydata).size - len(p0))
 
     return popt, pcov
 
@@ -87,11 +96,10 @@ eps = np.finfo(float).eps
 
 
 def zeros2eps(x):
-
     """
     args:
         x: float, complex, or numpy array
-    
+
     return:
         y: numpy array
 
@@ -151,4 +159,3 @@ def get_prefix(x):
 def get_prefix_str(x, precision=2):
 
     return "%.{}f %s".format(precision) % get_prefix(x)
-
