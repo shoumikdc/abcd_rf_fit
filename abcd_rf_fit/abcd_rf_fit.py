@@ -188,6 +188,7 @@ def fit_signal(
     final_ls_opti=True,
     return_pcov=False,
     allow_mismatch=True,
+    pre_fitted_kc=None,
     rec_depth=1,
 ):
 
@@ -213,10 +214,27 @@ def fit_signal(
     if fit_edelay:
         params = [*params, edelay]
 
-    fit_func = get_fit_function(geometry, fit_amplitude, fit_edelay)
+    fit_func = get_fit_function(geometry, fit_amplitude, fit_edelay)  
 
-    if final_ls_opti or return_pcov:
-        params_opt, pcov = complex_fit(fit_func, freq, signal, params)
+    # return fit_func, params  
+
+    if pre_fitted_kc is not None:
+        fit_func2 = lambda *args: fit_func(*[*args[:3], pre_fitted_kc, *args[4:]])
+        params2 = [*params[:2], pre_fitted_kc, *params[3:]]
+
+        if final_ls_opti or return_pcov:
+            params_opt, pcov = complex_fit(fit_func2, freq, signal, params2)
+        else:
+            params_opt = params2
+
+        params_opt = [*params_opt[:2], pre_fitted_kc, *params_opt[3:]]
+
+    else:
+    
+        if final_ls_opti or return_pcov:
+            params_opt, pcov = complex_fit(fit_func, freq, signal, params)
+        else:
+            params_opt = params    
 
     resonator_params = ResonatorParams(params_opt, geometry)
 
@@ -227,6 +245,6 @@ def fit_signal(
         )
 
     if return_pcov:
-        return fit_func, ResonatorParams(params_opt, geometry), pcov
+        return fit_func, resonator_params, pcov
 
-    return fit_func, ResonatorParams(params_opt, geometry)
+    return fit_func, resonator_params
