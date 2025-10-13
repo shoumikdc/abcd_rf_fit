@@ -77,7 +77,7 @@ def abcd2params(abcd, geometry):
 
         return f_0, kappa, kappa_c_real, phi_0, np.real(a_in), np.imag(a_in)
 
-    elif resonator_dict[geometry] == transmission:
+    elif resonator_dict[geometry] in [transmission, hanger2reflection]:
 
         signal_f_0_before = (a - b * np.real(c / d)) / (c - d * np.real(c / d))
         a, b = a - c * b / d, 0

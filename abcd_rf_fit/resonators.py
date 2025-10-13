@@ -51,6 +51,13 @@ def hanger_mismatched(freq, f_0, kappa, kappa_c_real, phi_0):
 def hanger_zero_internal_loss(freq, f_0, kappa_c_real, phi_0):
     return hanger(freq, f_0, kappa_c_real, kappa_c_real, phi_0)
 
+def hanger2reflection(freq, f_0, kappa):
+    """
+    When measuring a hanger device in reflection (S11), the lineshape is the same as transmission.
+    This function is an alias for transmission to make it clear that this is intentional.
+    """
+    return transmission(freq, f_0, kappa)
+
 
 resonator_dict = {
     "transmission": transmission,
@@ -64,6 +71,7 @@ resonator_dict = {
     "hanger_mismatched": hanger_mismatched,
     "hm": hanger_mismatched,
     "h0": hanger_zero_internal_loss,
+    "h2r": hanger2reflection,
 }
 
 
@@ -73,7 +81,7 @@ class ResonatorParams(object):
         self.resonator_func = resonator_dict[geometry]
         self.params = params
 
-        if self.resonator_func == transmission:
+        if self.resonator_func in [transmission, hanger2reflection]:
             self.f_0_index = 0
             self.kappa_index = 1
             if len(self.params) in [4, 5]:
@@ -214,6 +222,7 @@ class ResonatorParams(object):
         if (
             self.resonator_func == transmission
             or self.resonator_func == hanger_zero_internal_loss
+            or self.resonator_func == hanger2reflection
         ):
             kappa_str = r"%s%s = %sHz" % (
                 separator,
