@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.optimize import least_squares
-from scipy.linalg import svd
+from scipy.linalg import cho_factor, cho_solve
+import warnings
 
 
-def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
+def complex_fit(f, xdata, ydata, p0=None, weights=None, calc_pcov_mode="cho", **kwargs):
     """
     Wrapper around scipy least_square for complex functions
 
@@ -15,7 +16,18 @@ def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
         ydata: The dependent data.
         p0: Initial guess on independent variables.
         weights: Optional weighting in the calculation of the cost function.
-        kwargs: passed to the leas_square function
+        calc_pcov_mode: Method to use for calculating the covariance matrix.
+            Options are 'cho' (Cholesky decomposition), 'svd' (Singular Value Decomposition),
+            or 'inv' (direct matrix inversion). 
+
+            ▸ 'cho' is generally fastest and most accurate for well-conditioned problems.
+            ▸ 'svd' is more robust for poorly conditioned problems. A bit slower than cho, 
+               and small numerical differences are expected. 
+            ▸ 'inv' can be unstable for ill-conditioned problems and the slowest. Never recommended.
+            
+            Default is 'cho', with automatic fallback to 'svd' if Cholesky fails.
+
+        kwargs: passed to the leas_square function  
 
     Returns:
         A tuple with the optimal parameters and the covariance matrix
@@ -29,7 +41,7 @@ def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
     def residuals(params, x, y):
         """Computes the residual for the least square algorithm"""
         if weights is not None:
-            diff = weights * f(x, *params) - y
+            diff = weights * (f(x, *params) - y) # Weights should multiply both terms here
         else:
             diff = f(x, *params) - y
         flat_diff = np.zeros(diff.size * 2, dtype=np.float64)
@@ -43,26 +55,76 @@ def complex_fit(f, xdata, ydata, p0=None, weights=None, **kwargs):
     opt_res = least_squares(residuals, p0, args=(xdata, ydata), **kwargs_ls)
 
     popt = opt_res.x
+    jac = opt_res.jac
+    m = opt_res.fun.size
+    n = opt_res.x.size
+    if m <= n:
+        pcov = np.full((n, n), np.nan)
+        warnings.warn(
+            "Insufficient data to estimate covariance matrix: number of residuals (m=%d) "
+            "is not greater than number of parameters (n=%d). Returning NaN covariance."
+            % (m, n),
+            RuntimeWarning,
+        )
 
-    # From abcd_rf_fit
-    # jac = opt_res.jac
-    # cost = opt_res.cost
-    # pcov = np.linalg.inv(jac.T.dot(jac))
-    # pcov *= cost / (np.array(ydata).size - len(p0))
+        return popt, pcov
+        
+    if calc_pcov_mode == "cho":
+        try:
+            JTJ = jac.T @ jac
+            c, lower = cho_factor(JTJ, check_finite=False)
+            pcov = cho_solve((c, lower), np.eye(JTJ.shape[0]), check_finite=False)
+        except Exception:
+            warnings.warn(
+                "Cholesky decomposition failed; falling back to 'svd' mode to compute covariance.",
+                RuntimeWarning,
+            )
+            calc_pcov_mode = "svd"
 
-    # From curve_fit (Reouven)
-    _, s, VT = svd(opt_res.jac, full_matrices=False)
-    threshold = np.finfo(float).eps * max(opt_res.jac.shape) * s[0]
-    s = s[s > threshold]
-    VT = VT[: s.size]
-    pcov = np.dot(VT.T / s**2, VT)
-    pcov *= opt_res.cost / (np.array(ydata).size - len(p0))
+    if calc_pcov_mode == "svd":
+        _, s, VT = np.linalg.svd(jac, full_matrices=False)
+        V = VT.T
+        pcov = (V / (s**2)) @ V.T
 
+    if calc_pcov_mode == "inv":
+        JTJ = jac.T @ jac
+        pcov = np.linalg.inv(JTJ)
+
+    # In all cases, scale covariance
+    σ2 = 2.0 * opt_res.cost / (m - n)
+    pcov *= σ2
+       
+    return popt, pcov  
+    
+    # From abcd_rf_fit (old, can delete later)
+    popt = opt_res.x
+    jac = opt_res.jac
+    cost = opt_res.cost
+    pcov = np.linalg.inv(jac.T.dot(jac))
+    pcov *= cost / (np.array(ydata).size - len(p0))
     return popt, pcov
 
 
 def guess_edelay_from_gradient(freq, signal, n=-1):
+    """Estimate electrical delay from phase gradient across frequency.
 
+    This function estimates the electrical delay by computing the mean
+    phase difference between the beginning and end of the frequency sweep.
+
+    Parameters
+    ----------
+    freq : np.ndarray
+        Frequency array in Hz.
+    signal : np.ndarray
+        Complex signal array.
+    n : int, optional
+        Number of points to use from each end (default: -1, uses all points).
+
+    Returns
+    -------
+    float
+        Estimated electrical delay in seconds.
+    """
     dtheta = np.mean(np.angle(signal[-n:] / zeros2eps(signal[:n])))
     df = np.mean(np.diff(freq))
 
@@ -70,6 +132,23 @@ def guess_edelay_from_gradient(freq, signal, n=-1):
 
 
 def smooth_gradient(signal):
+    """Compute smoothed gradient of a signal using Gaussian derivative kernel.
+
+    This function applies a Gaussian derivative convolution to compute
+    a smoothed version of the signal gradient, which is used for
+    weighting in the ABCD fitting algorithm.
+
+    Parameters
+    ----------
+    signal : np.ndarray
+        Input complex signal array.
+
+    Returns
+    -------
+    np.ndarray
+        Smoothed gradient of the input signal.
+    """
+
     def dnormaldx(x, x_0, sigma):
         return -(x - x_0) * np.exp(-0.5 * ((x - x_0) / sigma) ** 2)
 
@@ -96,16 +175,21 @@ eps = np.finfo(float).eps
 
 
 def zeros2eps(x):
+    """Replace zeros with machine epsilon to avoid division by zero.
+
+    This utility function replaces any zero values in the input with
+    the machine epsilon to prevent numerical issues in calculations.
+
+    Parameters
+    ----------
+    x : float, complex, or np.ndarray
+        Input value or array.
+
+    Returns
+    -------
+    np.ndarray
+        Array with zeros replaced by machine epsilon.
     """
-    args:
-        x: float, complex, or numpy array
-
-    return:
-        y: numpy array
-
-    replace the zeros of a float or numpy array bien the smallest float number
-    """
-
     y = np.array(x)
     y[np.abs(y) < eps] = eps
 
@@ -113,12 +197,34 @@ def zeros2eps(x):
 
 
 def dB(x):
+    """Convert magnitude to decibels.
 
+    Parameters
+    ----------
+    x : float, complex, or np.ndarray
+        Input value(s) to convert.
+
+    Returns
+    -------
+    float or np.ndarray
+        Magnitude in decibels (20*log10(|x|)).
+    """
     return 20 * np.log10(np.abs(x))
 
 
 def deg(x):
+    """Convert phase from radians to degrees.
 
+    Parameters
+    ----------
+    x : float, complex, or np.ndarray
+        Input complex value(s).
+
+    Returns
+    -------
+    float or np.ndarray
+        Phase in degrees.
+    """
     return np.angle(x) * 180 / np.pi
 
 
@@ -156,6 +262,29 @@ def get_prefix(x):
         return (0, "")
 
 
-def get_prefix_str(x, precision=2):
+def get_prefix_str(x, precision: int = 2) -> str:
+    """Format a value with appropriate SI prefix as a string.
 
-    return "%.{}f %s".format(precision) % get_prefix(x)
+    Combines the functionality of get_prefix() with string formatting
+    to produce a human-readable representation of a value with SI units.
+
+    Parameters
+    ----------
+    x : float or np.ndarray
+        Input value to format.
+    precision : int, optional
+        Number of decimal places (default: 2).
+
+    Returns
+    -------
+    str
+        Formatted string with value and SI prefix.
+
+    Examples
+    --------
+    >>> get_prefix_str(1500)
+    '1.50 k'
+    >>> get_prefix_str(0.001)
+    '1.00 m'
+    """
+    return f"%.{precision}f %s" % get_prefix(x)
