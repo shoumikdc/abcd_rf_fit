@@ -21,6 +21,7 @@ def plot(
     precision=2,
     alpha_fit=1.0,
     style='Normal',
+    y_axis_str = r'S_{11}',
     title=None,
 ):
 
@@ -31,7 +32,6 @@ def plot(
     else:
         corrected_signal = None
     
-    y_axis_str = r'S_{11}'
     if fit_params is not None:
         if fit_params.resonator_func == resonator_dict['t']:
             y_axis_str = r'S_{21}'

@@ -118,6 +118,38 @@ def abcd2params(abcd, geometry):
         phi_0 = np.angle(kappa_c_real - 1j * kappa_c_imag)
 
         return f_0, kappa, kappa_c_real, phi_0, np.real(a_in), np.imag(a_in)
+    
+    elif resonator_dict[geometry] == hanger_zero_internal_loss:
+
+        f_0 = -np.real(c / d)
+        a_in = b / d
+
+        kappa_c_imag = 2 * np.real(a / b - c / d)
+        kappa_c_real = 2 * np.real(1j * (c / d - a / b))
+        kappa_i = -2 * np.imag(c / d) - kappa_c_real
+
+        kappa = kappa_i + kappa_c_real
+
+        print(kappa_c_real, kappa_i, "hi")
+
+        phi_0 = np.angle(kappa_c_real - 1j * kappa_c_imag)
+
+        return f_0, kappa, phi_0, np.real(a_in), np.imag(a_in)
+    
+    elif resonator_dict[geometry] == reflection_zero_internal_loss:
+
+        f_0 = -np.real(c / d)
+        a_in = b / d
+
+        kappa_c_imag = np.real(a / b - c / d)
+        kappa_c_real = np.real(1j * (c / d - a / b))
+        kappa_i = -np.imag(a / b + c / d)
+
+        kappa = kappa_i + kappa_c_real
+
+        phi_0 = np.angle(kappa_c_real - 1j * kappa_c_imag)
+
+        return f_0, kappa, phi_0, np.real(a_in), np.imag(a_in)
 
 
 def get_fit_function(geometry, amplitude=True, edelay=True):

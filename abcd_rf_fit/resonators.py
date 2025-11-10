@@ -16,7 +16,6 @@ else:
 
 
 def transmission(freq, f_0, kappa):
-
     num = 1
     den = 2j * (freq - f_0) + kappa
 
@@ -24,7 +23,6 @@ def transmission(freq, f_0, kappa):
 
 
 def reflection(freq, f_0, kappa, kappa_c_real, phi_0=0):
-
     num = 2j * (freq - f_0) + kappa - 2 * kappa_c_real * (1 + 1j * np.tan(phi_0))
     den = 2j * (freq - f_0) + kappa
 
@@ -32,12 +30,18 @@ def reflection(freq, f_0, kappa, kappa_c_real, phi_0=0):
 
 
 def reflection_mismatched(freq, f_0, kappa, kappa_c_real, phi_0):
-
     return reflection(freq, f_0, kappa, kappa_c_real, phi_0)
 
 
-def hanger(freq, f_0, kappa, kappa_c_real, phi_0=0):
+def reflection_zero_internal_loss(freq, f_0, kappa_c_real, phi_0):
+    """
+    Variant of reflection fit function with zero internal loss (κi = 0).
+    Useful for fitting data from E&M simulations where there is no internal loss.
+    """
+    return reflection(freq, f_0, kappa_c_real, kappa_c_real, phi_0)
 
+
+def hanger(freq, f_0, kappa, kappa_c_real, phi_0=0):
     num = 2j * (freq - f_0) + kappa - kappa_c_real * (1 + 1j * np.tan(phi_0))
     den = 2j * (freq - f_0) + kappa
 
@@ -49,7 +53,12 @@ def hanger_mismatched(freq, f_0, kappa, kappa_c_real, phi_0):
 
 
 def hanger_zero_internal_loss(freq, f_0, kappa_c_real, phi_0):
+    """
+    Variant of hanger fit function with zero internal loss (κi = 0).
+    Useful for fitting data from E&M simulations where there is no internal loss.
+    """
     return hanger(freq, f_0, kappa_c_real, kappa_c_real, phi_0)
+
 
 def hanger2reflection(freq, f_0, kappa):
     """
@@ -71,6 +80,7 @@ resonator_dict = {
     "hanger_mismatched": hanger_mismatched,
     "hm": hanger_mismatched,
     "h0": hanger_zero_internal_loss,
+    "r0": reflection_zero_internal_loss,
     "h2r": hanger2reflection,
 }
 
@@ -111,7 +121,7 @@ class ResonatorParams(object):
             if len(self.params) in [5, 7]:
                 self.edelay_index = -1
 
-        if self.resonator_func in [hanger_zero_internal_loss]:
+        if self.resonator_func in [hanger_zero_internal_loss, reflection_zero_internal_loss]:
             self.f_0_index = 0
             self.kappa_c_real_index = 1
             self.kappa_index = 1  # Here κ = Re(κc)
