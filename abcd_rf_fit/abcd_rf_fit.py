@@ -130,8 +130,6 @@ def abcd2params(abcd, geometry):
 
         kappa = kappa_i + kappa_c_real
 
-        print(kappa_c_real, kappa_i, "hi")
-
         phi_0 = np.angle(kappa_c_real - 1j * kappa_c_imag)
 
         return f_0, kappa, phi_0, np.real(a_in), np.imag(a_in)
