@@ -19,6 +19,38 @@ pip install -e .[dev]
 ```
 Please use `pip install -e '.[dev]'` if you are a `zsh` user.
 
+#### Example Usage:
+Suppose we have a resonator that is coupled to a feedline in a hanger geometry and we measure the transmitted signal $S_{21}(f)$ as a function of frequency $f$ using a Vector Network Analyzer (VNA). Given saved data `freqs_to_plot` (given in Hz) and `S21` (the full complex data), we can fit the measured trace using `abcd_rf_fit` using the following code snippet:
+
+```py
+import abcd_rf_fit as abcd
+
+fit_func, fit_params, pcov = abcd.fit_signal(freqs_to_plot, S21, 'hm', final_ls_opti=True, return_pcov=True) # rm for reflection mismatch; hm for hanger mismatch
+fit = fit_func(freqs_to_plot, *fit_params.tolist())
+
+abcd.plot(freqs_to_plot, S21, fit, fit_params=fit_params)
+```
+We use the setting `hm` in the fitter for hanger with mismatch (where the mismatch refers to fitting asymmetric Fano resonances that arise due to impedance mismatches in real data) and the fitter code will use the relevant fit function in the backend. If our resonator were coupled to a drive line in a reflection configuration, then we should use the setting `rm` instead. Also, when simulating resonators using finite-element E&M tools (e.g., Ansys HFSS or Sonnet) where we are trying to extract a coupling rate, we can use the settings `h0` and `r0`. Since simulated resonators have zero internal loss, these settings enforce $\kappa_i = 0$ in the fit function. 
+
+
+Additionally, we can print some useful metrics from the fit data above:
+```py
+# Logic: κ_i = κ - κ_c_real
+σ_k = np.sqrt(pcov[fit_params.kappa_index, fit_params.kappa_index])
+σ_kc = np.sqrt(pcov[fit_params.kappa_c_real_index, fit_params.kappa_c_real_index])
+σ_k_kc = pcov[fit_params.kappa_index, fit_params.kappa_c_real_index]
+σ_ki = np.sqrt(σ_k**2 + σ_kc**2 - 2*σ_k_kc)
+
+print(f"f_0: {fit_params.f_0*1e-9:.5f} GHz")
+print(f"κ/2π: {fit_params.kappa:.2f} Hz")
+print(f"κ_c/2π: {fit_params.kappa_c_real:.2f} Hz")
+print(f"κ_i/2π: {fit_params.kappa_i:.2f} Hz")
+print(f"T1_i: {1e6 / (2*np.pi*fit_params.kappa_i):.2f} µs")
+print(f"T1_c: {1e6 / (2*np.pi*fit_params.kappa_c_real):.2f} µs")
+print(f"Q_i: {fit_params.f_0/fit_params.kappa_i/1e6:.4f}e6")
+print(f"Q_c: {fit_params.f_0/fit_params.kappa_c/1e6:.4f}e6")
+```
+
 
 ## I) Why spend time on this problem?
 
